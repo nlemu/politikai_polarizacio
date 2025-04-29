@@ -1,8 +1,8 @@
-### Kulturálisnak prediktált felszólalásokon a számítások elvégzése ###
+### Az összes, előfeldolgozás után megmaradó felszólaláson a számítások elvégzése ###
 
 # A munkakönyvtárat (ahonnan a CSV fájlokat beolvassuk) és a célkönyvtárat (ahova a PDF-ek mentésre kerülnek) manuálisan kell beállítani.
 
-# A kód replikálja a dolgozat 2. ábráját és 8. táblázatát
+# A kód replikálja a dolgozat 1. ábráját és 6. táblázatát
 
 library(dplyr)
 library(ggplot2)
@@ -15,19 +15,16 @@ library(tinytex)
 
 setwd("Kerem/sajat/konyvtarat/allitson/be")
 
-teljes_korpusz_df <- read.csv("teljes_korpusz_df_0422_3.csv", fileEncoding = "UTF-8")
-bigram_lista <- read.csv("bigram_lista_0422_2.csv", fileEncoding = "UTF-8")
-speaker_metadata <- read.csv("speaker_metadata_0421.csv", fileEncoding = "UTF-8")
+teljes_korpusz_df <- read.csv("teljes_korpusz_df.csv", fileEncoding = "UTF-8")
+speaker_metadata <- read.csv("speaker_metadata.csv", fileEncoding = "UTF-8")
 
-cult_korpusz_df <- teljes_korpusz_df %>%
-  filter(predicted %in% c("both", "cult"))
 
 # "id_speaker" és "fidesz" változók hozzáadása
-cult_korpusz_df <- merge(cult_korpusz_df, speaker_metadata[, c("speaker", "period", "id_speaker", "fidesz")], 
-                           by = c("speaker", "period"), 
-                           all.x = TRUE)
+teljes_korpusz_df <- merge(teljes_korpusz_df, speaker_metadata[, c("speaker", "period", "id_speaker", "fidesz")], 
+                  by = c("speaker", "period"), 
+                  all.x = TRUE)
 
-bigram_party_period <- cult_korpusz_df %>%
+bigram_party_period <- teljes_korpusz_df %>%
   group_by(period, party, bigram) %>%
   summarise(N = sum(N), .groups = "drop")
 
@@ -43,14 +40,14 @@ bigram_comparison <- bigram_party_period %>%
 # speaker_metadata előkészítése
 speaker_metadata <- speaker_metadata %>%
   mutate(
-      # session változó létrehozása
-        session = case_when(
+    # session változó létrehozása
+    session = case_when(
       period == "1998-2002" ~ 3,
       period == "2002-2006" ~ 4,
       period == "2006-2010" ~ 5,
       period == "2010-2014" ~ 6,
       period == "2014-2018" ~ 7,
-      TRUE ~ NA_real_ 
+      TRUE ~ NA_real_
     ),
     
     # region változó (minden érték HUN)
@@ -66,7 +63,7 @@ speaker_metadata <- speaker_metadata %>%
       (period == "2006-2010" & fidesz == 0) ~ 1,
       (period == "2010-2014" & fidesz == 1) ~ 1,
       (period == "2014-2018" & fidesz == 1) ~ 1,
-      TRUE ~ 0
+      TRUE ~ 0  # Minden más esetben 0
     )
   )
 
@@ -86,17 +83,17 @@ speaker_metadata <- speaker_metadata %>%
 # oszlop: bigramm
 
 # Egyedi id_speaker és bigram értékek
-speakers <- unique(cult_korpusz_df$id_speaker)
-bigrams <- unique(cult_korpusz_df$bigram)
+speakers <- unique(teljes_korpusz_df$id_speaker)
+bigrams <- unique(teljes_korpusz_df$bigram)
 
 # Indexek létrehozása a sparseMatrix számára
-row_index <- match(cult_korpusz_df$id_speaker, speakers)
-col_index <- match(cult_korpusz_df$bigram, bigrams)
+row_index <- match(teljes_korpusz_df$id_speaker, speakers)
+col_index <- match(teljes_korpusz_df$bigram, bigrams)
 
 # Ritka mátrix létrehozása
 C_tdk <- sparseMatrix(i = row_index, 
                       j = col_index, 
-                      x = cult_korpusz_df$N, 
+                      x = teljes_korpusz_df$N, 
                       dims = c(length(speakers), length(bigrams)), 
                       dimnames = list(speakers, bigrams))
 
@@ -133,12 +130,13 @@ fit_tdk <- dmr(
   counts = C_tdk,
   mu = mu_tdk,
   free = 1:ncol(X_tdk),
-  fixedcost = 0.007,
+  fixedcost = 0.015,
   lambda.start = Inf,
-  lambda.min.ratio = 1e-2,
+  lambda.min.ratio = 0.015,
   nlambda = 150,
   standardize = FALSE
 )
+
 
 stopCluster(cl_tdk)
 
@@ -188,6 +186,8 @@ speaker_probs <- speaker_metadata %>%
   group_by(id_speaker) %>%
   summarise(mean_prob_fidesz = mean(prob_fidesz))
 
+table(speaker_probs$mean_prob_fidesz)
+
 set.seed(42)
 
 speaker_metadata_reassign <- speaker_metadata %>%
@@ -231,12 +231,13 @@ fit_tdk_reassigned <- dmr(
   counts = C_tdk,
   mu = mu_tdk_reassigned,
   free = 1:ncol(X_tdk_reassigned),
-  fixedcost = 0.007,
+  fixedcost = 0.015,
   lambda.start = Inf,
-  lambda.min.ratio = 1e-2,
+  lambda.min.ratio = 0.015,
   nlambda = 150,
   standardize = TRUE
 )
+
 
 stopCluster(cl_tdk_reassigned)
 
@@ -296,7 +297,7 @@ ggplot(combined_df, aes(x = year, y = value, group = type, color = type, linetyp
   scale_color_manual(values = c("valós" = "red4", "random" = "gray40")) +
   scale_linetype_manual(values = c("valós" = "solid", "random" = "dashed")) +
   labs(
-    title = expression("Pártos polarizáció alakulása a kulturális korpuszon"),
+    title = expression("Pártos polarizáció alakulása a teljes korpuszon"),
     y = "Átlagos pártos polarizáció",
     x = NULL,
     color = NULL,
@@ -304,7 +305,7 @@ ggplot(combined_df, aes(x = year, y = value, group = type, color = type, linetyp
   ) +
   theme_minimal(base_size = 13) +
   theme(
-    plot.title = element_text(hjust = 0.3, face = "italic", size = 14),
+    plot.title = element_text(hjust = 0.35, face = "italic", size = 14),
     legend.position = "top",
     panel.grid.minor = element_blank()
   ) +
@@ -312,8 +313,8 @@ ggplot(combined_df, aes(x = year, y = value, group = type, color = type, linetyp
 
 
 
-
 ### Validáció 2 -- legpártosabb bigramok ciklusonként ###
+
 
 extract_top_partisan_phrases <- function(zeta_matrix, top_n = 10) {
   partisan_phrases_list <- list()
@@ -348,33 +349,6 @@ extract_top_partisan_phrases <- function(zeta_matrix, top_n = 10) {
   rownames(result_df) <- NULL
   return(result_df)
 }
-
-
-# Top pártos kifejezések kinyerése
-top_partisan_phrases <- extract_top_partisan_phrases(coefs_F_tdk, top_n = 10) # n állítható
-
-
-session_period_map <- data.frame(
-  session_id = paste0("session", 3:7, "_F_tdk"),
-  period_label = c("1998-2002", "2002-2006", "2006-2010", "2010-2014", "2014-2018")
-)
-
-top_phrases_with_period <- top_partisan_phrases %>%
-  left_join(session_period_map, by = "session_id")
-
-bigram_frequency_by_party <- bigram_party_period %>%
-  filter(party %in% c("Fidesz", "MSZP")) %>%
-  pivot_wider(names_from = party, values_from = N, values_fill = list(N = 0)) %>%
-  rename(
-    frequency_fidesz = Fidesz,
-    frequency_mszp = MSZP,
-    period_label = period
-  )
-
-# Összekapcsolás a bigram + időszak alapján
-top_phrases_with_freq <- top_phrases_with_period %>%
-  left_join(bigram_frequency_by_party, by = c("bigram", "period_label"))
-
 
 # Táblázat készítése gyakorisággal együtt
 create_partisan_table <- function(data, top_n = 10) {
@@ -413,11 +387,35 @@ create_partisan_table <- function(data, top_n = 10) {
 }
 
 
+# Top pártos kifejezések kinyerése
+top_partisan_phrases <- extract_top_partisan_phrases(coefs_F_tdk, top_n = 10) # n állítható
+
+session_period_map <- data.frame(
+  session_id = paste0("session", 3:7, "_F_tdk"),
+  period_label = c("1998-2002", "2002-2006", "2006-2010", "2010-2014", "2014-2018")
+)
+
+top_phrases_with_period <- top_partisan_phrases %>%
+  left_join(session_period_map, by = "session_id")
+
+bigram_frequency_by_party <- bigram_party_period %>%
+  filter(party %in% c("Fidesz", "MSZP")) %>%
+  pivot_wider(names_from = party, values_from = N, values_fill = list(N = 0)) %>%
+  rename(
+    frequency_fidesz = Fidesz,
+    frequency_mszp = MSZP,
+    period_label = period
+  )
+
+# Összekapcsolás a bigram + időszak alapján
+top_phrases_with_freq <- top_phrases_with_period %>%
+  left_join(bigram_frequency_by_party, by = c("bigram", "period_label"))
+
 # összeállított táblázat
 partisan_table <- create_partisan_table(top_phrases_with_freq, top_n = 10)
 
-# PDF generálása ciklusonként (összesen 5 PDF)
 
+# PDF generálása ciklusonként (összesen 5 PDF)
 cleaned_table <- partisan_table %>%
   rename(
     Fideszes = Fideszes_kifejezés,
@@ -462,7 +460,7 @@ for (ciklus in unique_ciklusok) {
     "\\usepackage{xcolor}",
     "\\usepackage{colortbl}",
     "\\begin{document}",
-    paste0("\\section*{Top pártos kifejezések – ", ciklus, " (kulturalis korpusz)}"),
+    paste0("\\section*{Top pártos kifejezések – ", ciklus, " (teljes korpusz)}"),
     "{\\small",
     as.character(tbl_latex),
     "}",
@@ -470,9 +468,8 @@ for (ciklus in unique_ciklusok) {
   )
   
   base_name <- gsub("[^0-9]", "", ciklus)
-  tex_path <- file.path(output_dir, paste0("top_kifejezesek_kulturalis_korpusz_", base_name, ".tex"))
+  tex_path <- file.path(output_dir, paste0("top_kifejezesek_teljes_korpusz_", base_name, ".tex"))
   
   writeLines(full_tex, tex_path)
   tinytex::latexmk(tex_path)
 }
-
