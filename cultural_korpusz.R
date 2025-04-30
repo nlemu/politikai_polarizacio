@@ -16,7 +16,6 @@ library(tinytex)
 setwd("Kerem/sajat/konyvtarat/allitson/be")
 
 teljes_korpusz_df <- read.csv("teljes_korpusz_df_0422_3.csv", fileEncoding = "UTF-8")
-bigram_lista <- read.csv("bigram_lista_0422_2.csv", fileEncoding = "UTF-8")
 speaker_metadata <- read.csv("speaker_metadata_0421.csv", fileEncoding = "UTF-8")
 
 cult_korpusz_df <- teljes_korpusz_df %>%
