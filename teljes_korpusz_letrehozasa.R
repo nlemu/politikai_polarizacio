@@ -64,7 +64,7 @@ filtered_bigrams <- bigram_summary[total_speakers >= 5 & total_occurrences >= 10
 
 ### procedurális bigramok és alacsony szemantikai jelentéssel bíró bigramok kiszűrése ###
 
-vegse_exclude <- readLines("vegso_exclude.txt", encoding = "UTF-8")
+vegso_exclude <- readLines("vegso_exclude.txt", encoding = "UTF-8")
 
 filtered_bigrams <- filtered_bigrams[!bigram %in% vegso_exclude]
 
